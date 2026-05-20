@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String
+from sqlalchemy.orm import relationship
 from app.config.db import Base
 import datetime
 
@@ -14,3 +15,8 @@ class User(Base):
     last_name = Column(String, nullable=True)
     created_at = Column(String, default=datetime.datetime.utcnow)
     updated_at = Column(String, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    conversations = relationship(
+        "Conversation",
+        back_populates="user",
+        cascade="all, delete"
+    )
