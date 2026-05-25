@@ -13,15 +13,18 @@ authRouter = APIRouter(
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+
 @authRouter.post("/register")
 async def register(request: Register, db: Session = Depends(get_db)) -> ResponseSchema:
+    
     try:
+        hashed_password = pwd_context.hash(request.password)
         _user = User(
             first_name = request.first_name,
             last_name = request.last_name,
             username = request.username,
             email = request.email,
-            password = request.password )
+            password = hashed_password )
         UserRepo.insert(db, _user)
         return ResponseSchema(code="200", status="success", message="User registered successfully")
     except Exception as e:

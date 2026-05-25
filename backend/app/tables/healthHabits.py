@@ -27,6 +27,9 @@ class HealthHabits(Base):
     screen_time_h = Column(Float)
     mindfulness = Column(Float)
 
+
+    stress_score = Column(Float, nullable=False)
+
     created_at = Column(
         DateTime,
         default=datetime.datetime.utcnow

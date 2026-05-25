@@ -1,11 +1,17 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends 
+from sqlalchemy.orm import Session
+from app.config.db import get_db
 from app.models.healthHabits import HealthHabitsInput, StressPredictionOutput
+from app.repository.dependencies import get_current_user
+from datetime import datetime
+from app.repository.healthHabits import HealthHabitsRepo
+from app.tables.users import User
+from app.repository.users import UserRepo
+from app.tables.healthHabits import HealthHabits
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
-# ─────────────────────────────────────────────
-# Stress Formula
-# ─────────────────────────────────────────────
+
 def calculate_stress(data):
 
     stress = 0
@@ -57,9 +63,6 @@ def calculate_stress(data):
     return round(stress, 2)
 
 
-# ─────────────────────────────────────────────
-# Stress Level
-# ─────────────────────────────────────────────
 def get_stress_level(score: float):
 
     if score < 3:
@@ -77,18 +80,40 @@ def get_stress_level(score: float):
     return "Critical"
 
 
-# ─────────────────────────────────────────────
-# API Route
-# ─────────────────────────────────────────────
-@router.post("/predict", response_model=StressPredictionOutput)
-async def predict_stress(habits: HealthHabitsInput):
 
+@router.post("/predict", response_model=StressPredictionOutput)
+async def predict_stress(
+    habits: HealthHabitsInput, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
     try:
         data = habits.dict()
-
         score = calculate_stress(data)
-
         level = get_stress_level(score)
+        user_email = current_user["sub"]
+        db_user = UserRepo.find_by_email(db, User, user_email)
+        # 1. Map incoming Pydantic input to your SQLAlchemy Database Table format
+        new_habit_record = HealthHabits(
+            user_id=db_user.id, # Now this works perfectly
+            sleep_hours=habits.sleep_hours,
+            sleep_quality=habits.sleep_quality,
+            caffeine_mg=habits.caffeine_mg,
+            exercise_min=habits.exercise_min,
+            mood_score=habits.mood_score,
+            social_interaction=habits.social_interaction,
+            water_liters=habits.water_liters,
+            meal_regularity=habits.meal_regularity,
+            junk_food=habits.junk_food,
+            work_hours=habits.work_hours,
+            screen_time_h=habits.screen_time_h,
+            mindfulness=habits.mindfulness,
+            stress_score=score, # Saved directly to your history
+            created_at=datetime.utcnow()
+        )
+
+        # 2. Use your inherited BaseRepo method to save to database
+        HealthHabitsRepo.insert(db, new_habit_record)
 
         return StressPredictionOutput(
             predicted_stress_score=score,
