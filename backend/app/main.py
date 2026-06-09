@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.tables import message, users, healthHabits,conversation
 from app.routes.healthHabit import router as api_router
+from app.routes.chat import chatRouter         
 
 
 
@@ -35,6 +36,7 @@ app = FastAPI(lifespan=lifespan)
 app.include_router(authRouter) 
  # Include the health check router
 app.include_router(api_router)
+app.include_router(chatRouter, prefix="/api")
 
 
 app.add_middleware(
