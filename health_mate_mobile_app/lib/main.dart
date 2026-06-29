@@ -1,22 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:health_mate_mobile_app/HomeScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'onboarding_screen.dart';
-import 'auth_screen.dart';   // Imported your auth page
-import 'main_layout.dart';   // Imported your home page with the bottom navigation bar
+import 'auth_screen.dart';
+import 'main_layout.dart';
 
 int? isFirstTimeLaunch;
+String? userToken; // <-- AJOUT : Stocker le jeton récupéré localement
 
 void main() async {
-  // Ensures Flutter engine bindings are completely ready before checking shared preferences
   WidgetsFlutterBinding.ensureInitialized();
 
   SharedPreferences prefs = await SharedPreferences.getInstance();
 
-  // Try to read the initialization value. If it's null, it's the user's first time ever installing.
+  // 1. Vérification du premier lancement
   isFirstTimeLaunch = prefs.getInt('initScreen');
 
-  // Note: We keep this at 0 or null during onboarding, and write '1' once they officially complete it
-  // or pass the gate to prevent getting locked out during hot-reloads while developing.
+  // 2. AJOUT : Vérification si l'utilisateur est déjà connecté
+  // Lors d'un login réussi dans ton AuthScreen, tu devras faire :
+  // prefs.setString('token', tokenDuBackend);
+  userToken = prefs.getString('token');
 
   runApp(const HealthMateApp());
 }
@@ -30,22 +33,22 @@ class HealthMateApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'HealthMate 2.0',
       theme: ThemeData(
-        fontFamily: 'SF Pro Display', // Clean, professional iOS/Android typography look
+        fontFamily: 'SF Pro Display',
         scaffoldBackgroundColor: const Color(0xFFF7F9FC),
-        useMaterial3: true, // Maximizes UI components rendering layout compatibility
+        useMaterial3: true,
       ),
 
-      // PERSISTENT ROUTING CONTROLLER
-      // 1. If null/0 -> User goes straight to Onboarding steps flow.
-      // 2. If 1 -> User completely skips intro and lands immediately on the Auth Login view.
+      // PORTIER DE ROUTING INTELLIGENT
+      // Étape 1 : Si c'est la première fois -> Onboarding
+      // Étape 2 : Si ce n'est pas la première fois, mais qu'il n'y a pas de token -> AuthScreen
+      // Étape 3 : Si l'utilisateur est déjà connecté -> Accès direct au MainLayout (Home)
       home: (isFirstTimeLaunch == 0 || isFirstTimeLaunch == null)
           ? const OnboardingRoot()
-          : const AuthScreen(),
+          : (userToken == null ? const AuthScreen() : const MainLayout()),
 
-      // Named routes infrastructure map in case you want explicit back-referencing transitions later
       routes: {
         '/auth': (context) => const AuthScreen(),
-        '/home': (context) => const MainLayout(),
+        '/home': (context) => const HomeScreen(),
       },
     );
   }

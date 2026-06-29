@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:health_mate_mobile_app/HomeScreen.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -8,14 +9,15 @@ class MainLayout extends StatefulWidget {
 }
 
 class _MainLayoutState extends State<MainLayout> {
-  int _currentIndex = 3; // Default to index 3 (AI Chat) based on your picture mockup
+  // Changement ici : On démarre sur l'index 0 (Home) pour voir le dashboard de stress directement
+  int _currentIndex = 0;
 
-  // The actual screens attached to each specific navigation position
+  // 2. MODIFIE LA LISTE DES PAGES ICI
   final List<Widget> _pages = [
-    const Center(child: Text("Home Dashboard Screen", style: TextStyle(fontSize: 18))),
+    const HomeScreen(), // <-- Ton tableau de bord remplace le texte brut !
     const Center(child: Text("Sport Tracking Screen", style: TextStyle(fontSize: 18))),
     const Center(child: Text("Nutrition Log Screen", style: TextStyle(fontSize: 18))),
-    const CentralAIChatMock(), // Your AI Chat Interface view goes here
+    const CentralAIChatMock(),
     const Center(child: Text("Profile Settings Screen", style: TextStyle(fontSize: 18))),
   ];
 
@@ -61,7 +63,6 @@ class _MainLayoutState extends State<MainLayout> {
               activeIcon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.restaurant_rounded)),
               label: 'Nutrition',
             ),
-            // Distinctive Highlighted AI Chat Capsule Button matching your UI
             BottomNavigationBarItem(
               icon: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -89,6 +90,8 @@ class _MainLayoutState extends State<MainLayout> {
     );
   }
 }
+
+// (Garde ton CentralAIChatMock ou remplace-le de la même manière plus tard...)
 
 // Quick UI placeholder mirroring your AI Assistant image interface wrapper
 class CentralAIChatMock extends StatelessWidget {
