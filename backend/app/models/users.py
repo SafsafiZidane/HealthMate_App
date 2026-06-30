@@ -1,5 +1,7 @@
 from typing import Generic, Optional, TypeVar
 from pydantic import BaseModel
+from app.tables.users import UserRole
+from app.models.consultation import DoctorProfileBase
 
 
 
@@ -27,3 +29,12 @@ class ResponseSchema( BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
+
+
+class AdminCreateUser(Register):
+    """
+    Used only in protected admin dashboards to manually create 
+    doctors, admins, or standard users.
+    """
+    role: UserRole = UserRole.USER
+    doctor_profile: Optional[DoctorProfileBase] = None

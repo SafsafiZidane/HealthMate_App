@@ -7,3 +7,4 @@ langchain-core
 langchain-groq
 groq
 python-dotenv
+psycopg2-binary

@@ -21,7 +21,39 @@ If the user asks about anything unrelated to health, politely decline and redire
 Never provide definitive medical diagnoses. Always recommend consulting a qualified healthcare professional for personal medical advice."""
 
 
+def is_health_related(message: str) -> bool:
+    """
+    Quick classification check to block non-health queries before hitting the main pipeline.
+    """
+    classification_prompt = (
+        "You are a strict text classifier. Determine if the following user input is related to medicine, "
+        "health, symptoms, fitness, nutrition, or mental well-being.\n"
+        "Respond with EXACTLY 'YES' if it is related, or 'NO' if it is not. Do not include any other text.\n\n"
+        f"User Input: \"{message}\"\n"
+        "Classification:"
+    )
+    
+    try:
+        completion = groq_client.chat.completions.create(
+            model="llama-3.1-8b-instant", # Or a faster/cheaper model if available
+            messages=[{"role": "user", "content": classification_prompt}],
+            temperature=0.0,  # Deterministic response
+            max_tokens=3,
+        )
+        decision = completion.choices[0].message.content.strip().upper()
+        return "YES" in decision
+    except Exception:
+        # Fallback: if guardrail fails, let it pass to the main prompt or log it
+        return True
+
 def chat_with_history(db: Session, user: User, message: str, conversation_id: int | None) -> dict:
+    # ── GUARDRAIL STEP ────────────────────────────────────
+    if not is_health_related(message):
+        # We reject immediately. We don't even create a conversation or save to DB.
+        raise HTTPException(
+            status_code=400, 
+            detail="I can only assist you with health, medical, or wellness-related inquiries."
+        )
 
     # ── 1. Get or create conversation ─────────────────────
     if conversation_id:
@@ -29,12 +61,12 @@ def chat_with_history(db: Session, user: User, message: str, conversation_id: in
         if not conv:
             raise HTTPException(status_code=404, detail="Conversation not found")
     else:
-        conv = ConversationRepo.create(db, user_id=user.id, title=message)
+        conv = ConversationRepo.create(db, user_id=user.id, title=message[:50]) # limit title length
 
     # ── 2. Save user message to DB ─────────────────────────
     MessageRepo.save(db, conv.id, role="user", content=message)
 
-    # ── 3. Load FULL history from DB → send to Groq ────────
+    # ── 3. Load FULL history from DB ───────────────────────
     history = MessageRepo.get_history(db, conv.id)
 
     groq_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -45,7 +77,7 @@ def chat_with_history(db: Session, user: User, message: str, conversation_id: in
         completion = groq_client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=groq_messages,
-            temperature=0.7,
+            temperature=0.3, # Dropped to 0.3 for more factual, less hallucinated responses
             max_tokens=1024,
         )
         ai_response = completion.choices[0].message.content
