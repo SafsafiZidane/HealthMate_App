@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends 
 from sqlalchemy.orm import Session
 from app.config.db import get_db
-from app.models.healthHabits import HealthHabitsInput, StressPredictionOutput
+from app.models.healthHabits import BMIPlanInput, BMIPlanOutput, HealthHabitsInput, StressPredictionOutput
 from app.repository.dependencies import get_current_user
 from datetime import datetime
 from app.repository.healthHabits import HealthHabitsRepo
@@ -80,6 +80,82 @@ def get_stress_level(score: float):
     return "Critical"
 
 
+def calculate_bmi(weight_kg: float, height_cm: float) -> float:
+    height_m = height_cm / 100
+    return round(weight_kg / (height_m ** 2), 2)
+
+
+def get_bmi_category(bmi: float) -> str:
+    if bmi < 18.5:
+        return "Underweight"
+    if bmi < 25:
+        return "Normal"
+    if bmi < 30:
+        return "Overweight"
+    return "Obese"
+
+
+def get_target_weight_range(height_cm: float) -> str:
+    height_m = height_cm / 100
+    min_weight = 18.5 * (height_m ** 2)
+    max_weight = 24.9 * (height_m ** 2)
+    return f"{round(min_weight, 1)} - {round(max_weight, 1)}"
+
+
+def build_bmi_plan(goal: str, bmi_category: str) -> dict[str, list[str]]:
+    common_recommendations = [
+        "Track weight once per week, not every day.",
+        "Drink 2 to 3 liters of water daily unless your doctor told you otherwise.",
+        "Sleep 7 to 9 hours per night to support recovery and appetite control.",
+        "Ask a doctor or dietitian before starting if you have diabetes, heart disease, kidney disease, or an eating disorder history.",
+    ]
+
+    if goal == "lose":
+        nutrition_plan = [
+            "Create a small calorie deficit by reducing sugary drinks, fried food, and oversized portions.",
+            "Eat protein with each meal: eggs, chicken, fish, yogurt, beans, lentils, or tofu.",
+            "Fill half the plate with vegetables and fruit, one quarter with protein, and one quarter with whole grains or potatoes.",
+            "Choose healthy snacks like fruit, yogurt, nuts in small portions, or boiled eggs.",
+        ]
+        exercise_plan = [
+            "Do 150 to 300 minutes of moderate cardio weekly, such as brisk walking, cycling, or swimming.",
+            "Add strength training 2 to 3 days per week for full body muscles.",
+            "Start with 20 to 30 minutes per session if you are inactive, then increase gradually.",
+            "Add daily movement: stairs, walking after meals, and short activity breaks.",
+        ]
+    else:
+        nutrition_plan = [
+            "Create a small calorie surplus with 3 main meals and 1 to 2 snacks daily.",
+            "Prioritize protein with each meal: eggs, chicken, fish, dairy, beans, lentils, or tofu.",
+            "Add calorie-dense healthy foods like olive oil, avocado, nuts, peanut butter, rice, pasta, oats, and smoothies.",
+            "Increase portions gradually so weight gain is steady and comfortable.",
+        ]
+        exercise_plan = [
+            "Do strength training 3 to 4 days per week with progressive overload.",
+            "Focus on compound movements: squats, deadlifts, presses, rows, lunges, and pull movements.",
+            "Keep cardio light to moderate, 1 to 2 sessions weekly, for heart health.",
+            "Rest each muscle group at least 48 hours before training it hard again.",
+        ]
+
+    recommendations = common_recommendations
+    if goal == "lose" and bmi_category == "Underweight":
+        recommendations = [
+            "Your BMI is already under the normal range, so weight loss is not recommended without medical supervision.",
+            *common_recommendations,
+        ]
+    elif goal == "gain" and bmi_category in ["Overweight", "Obese"]:
+        recommendations = [
+            "Your BMI is above the normal range, so focus on strength, nutrition quality, and medical advice before gaining more weight.",
+            *common_recommendations,
+        ]
+
+    return {
+        "nutrition_plan": nutrition_plan,
+        "exercise_plan": exercise_plan,
+        "recommendations": recommendations,
+    }
+
+
 
 @router.post("/predict", response_model=StressPredictionOutput)
 async def predict_stress(
@@ -125,3 +201,29 @@ async def predict_stress(
             status_code=400,
             detail=f"Prediction error: {str(e)}"
         )
+
+
+@router.post("/bmi-plan", response_model=BMIPlanOutput)
+async def recommend_bmi_plan(plan_input: BMIPlanInput):
+    if plan_input.height_cm <= 0:
+        raise HTTPException(status_code=400, detail="height_cm must be greater than 0")
+    if plan_input.weight_kg <= 0:
+        raise HTTPException(status_code=400, detail="weight_kg must be greater than 0")
+    if plan_input.height_cm < 80 or plan_input.height_cm > 250:
+        raise HTTPException(status_code=400, detail="height_cm must be between 80 and 250")
+    if plan_input.weight_kg < 20 or plan_input.weight_kg > 350:
+        raise HTTPException(status_code=400, detail="weight_kg must be between 20 and 350")
+
+    bmi = calculate_bmi(plan_input.weight_kg, plan_input.height_cm)
+    bmi_category = get_bmi_category(bmi)
+    plan = build_bmi_plan(plan_input.goal, bmi_category)
+
+    return BMIPlanOutput(
+        bmi=bmi,
+        bmi_category=bmi_category,
+        goal=plan_input.goal,
+        target_weight_range_kg=get_target_weight_range(plan_input.height_cm),
+        nutrition_plan=plan["nutrition_plan"],
+        exercise_plan=plan["exercise_plan"],
+        recommendations=plan["recommendations"],
+    )

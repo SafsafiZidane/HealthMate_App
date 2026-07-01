@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -19,3 +21,19 @@ class HealthHabitsInput(BaseModel):
 class StressPredictionOutput(BaseModel):
     predicted_stress_score: float
     stress_level: str
+
+
+class BMIPlanInput(BaseModel):
+    height_cm: float
+    weight_kg: float
+    goal: Literal["lose", "gain"]
+
+
+class BMIPlanOutput(BaseModel):
+    bmi: float
+    bmi_category: str
+    goal: str
+    target_weight_range_kg: str
+    nutrition_plan: list[str]
+    exercise_plan: list[str]
+    recommendations: list[str]
