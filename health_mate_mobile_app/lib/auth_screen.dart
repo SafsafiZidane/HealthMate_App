@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:health_mate_mobile_app/main.dart';
-import 'package:health_mate_mobile_app/main_layout.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
+import 'main_layout.dart';
+import 'package:health_mate_mobile_app/screens/admin/admin_dashboard_screen.dart';
+import 'package:health_mate_mobile_app/screens/doctor/doctor_dashboard_screen.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -12,74 +13,60 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  bool isSignInTab = true; // Controls the sliding toggle state
+  bool isSignInTab = true;
   final _formKey = GlobalKey<FormState>();
 
-  // Form Field Controllers
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
 
-  bool _isLoading = false;
-
-  // Change this URL string based on deployment environments
-  final String backendBaseUrl = "http://10.0.2.2:8000";
-  // final String backendBaseUrl = "http://192.168.1.50:8000";
-
-  // ==========================================
-  // BACKEND API CONNECTION LOGIC
-  // ==========================================
-    void _submitAuthForm() async {
+  void _submitAuthForm() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-    final String endpoint = isSignInTab ? "/login" : "/register";
-    final Map<String, dynamic> requestPayload = isSignInTab
-        ? {
-      "email": _emailController.text.trim(),
-      "password": _passwordController.text
-    }
-        : {
-      "first_name": "User", // Defaults for your Register Schema properties
-      "last_name": "Mate",
-      "username": _emailController.text.split('@')[0],
-      "email": _emailController.text.trim(),
-      "password": _passwordController.text
-    };
+    Map<String, dynamic> result;
 
-    try {
-      final response = await http.post(
-        Uri.parse("$backendBaseUrl$endpoint"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(requestPayload),
+    if (isSignInTab) {
+      result = await authProvider.login(
+        _emailController.text.trim(),
+        _passwordController.text,
       );
+    } else {
+      result = await authProvider.register(
+        _firstNameController.text.trim().isEmpty ? "User" : _firstNameController.text.trim(),
+        _lastNameController.text.trim().isEmpty ? "Mate" : _lastNameController.text.trim(),
+        _emailController.text.split('@')[0],
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+    }
 
-      final responseData = jsonDecode(response.body);
+    if (result['success']) {
+      _showStatusSnackbar(result['message'], Colors.green);
+      if (isSignInTab) {
+        if (!mounted) return;
 
-      if (response.statusCode == 200 && responseData['status'] == 'success') {
-        _showStatusSnackbar(responseData['message'], Colors.green);
-
-        if (isSignInTab) {
-          // 1. Extract your JWT token if needed for storage
-          // String accessToken = responseData['result']['access_token'];
-
-          // 2. Redirect to main screen permanently so they can't go back to Login
-          if (!mounted) return;
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const MainLayout()),
-                (Route<dynamic> route) => false, // Clears the previous navigation history stack
-          );
+        Widget nextScreen;
+        final role = result['role'];
+        if (role == 'admin') {
+          nextScreen = const AdminDashboardScreen();
+        } else if (role == 'doctor') {
+          nextScreen = const DoctorDashboardScreen();
         } else {
-          // Switch automatically to the Login view tab upon successful registration
-          setState(() => isSignInTab = true);
+          nextScreen = const MainLayout();
         }
+
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => nextScreen),
+          (Route<dynamic> route) => false,
+        );
       } else {
-        _showStatusSnackbar(responseData['message'] ?? "Authentication failed", Colors.redAccent);
+        setState(() => isSignInTab = true);
       }
-    } catch (e) {
-      _showStatusSnackbar("Cannot reach backend engine server connection.", Colors.red);
-    } finally {
-      setState(() => _isLoading = false);
+    } else {
+      _showStatusSnackbar(result['message'], Colors.redAccent);
     }
   }
 
@@ -204,6 +191,34 @@ class _AuthScreenState extends State<AuthScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (!isSignInTab) ...[
+                        const Text("First Name", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF0F172A))),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _firstNameController,
+                          decoration: InputDecoration(
+                            hintText: "John",
+                            prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF94A3B8)),
+                            filled: true,
+                            fillColor: const Color(0xFFF8FAFC),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        const Text("Last Name", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF0F172A))),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _lastNameController,
+                          decoration: InputDecoration(
+                            hintText: "Doe",
+                            prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF94A3B8)),
+                            filled: true,
+                            fillColor: const Color(0xFFF8FAFC),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
                       const Text("Email Address", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF0F172A))),
                       const SizedBox(height: 8),
                       TextFormField(
@@ -248,27 +263,31 @@ class _AuthScreenState extends State<AuthScreen> {
                       const SizedBox(height: 24),
 
                       // Execution Submission Button
-                      ElevatedButton(
-                        onPressed: _isLoading ? null : _submitAuthForm,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0052CC),
-                          minimumSize: const Size(double.infinity, 54),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(27)),
-                          elevation: 0,
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-                            : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              isSignInTab ? "Sign In" : "Sign Up",
-                              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      Consumer<AuthProvider>(
+                        builder: (context, auth, _) {
+                          return ElevatedButton(
+                            onPressed: auth.isLoading ? null : _submitAuthForm,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0052CC),
+                              minimumSize: const Size(double.infinity, 54),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(27)),
+                              elevation: 0,
                             ),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
-                          ],
-                        ),
+                            child: auth.isLoading
+                                ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                                : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  isSignInTab ? "Sign In" : "Sign Up",
+                                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(width: 8),
+                                const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
+                              ],
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(height: 24),
 
