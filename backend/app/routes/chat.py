@@ -6,6 +6,7 @@ from app.models.chat import ChatRequest, ChatResponse, ConversationOut, MessageO
 from app.services.chat_service import chat_with_history
 from app.repository.chat import ConversationRepo, MessageRepo
 from app.repository.users import JWTRepo
+from app.repository.dependencies import get_current_standard_user
 from app.tables.users import User
 
 chatRouter = APIRouter(tags=["Chat"])
@@ -31,7 +32,7 @@ def get_current_user(
 @chatRouter.post("/chat", response_model=ChatResponse)
 def chat(
     req: ChatRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_standard_user),
     db: Session = Depends(get_db),
 ):
     return chat_with_history(db, user, req.message, req.conversation_id)
@@ -39,7 +40,7 @@ def chat(
 
 @chatRouter.get("/conversations", response_model=list[ConversationOut])
 def list_conversations(
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_standard_user),
     db: Session = Depends(get_db),
 ):
     return ConversationRepo.get_all(db, user.id)
@@ -48,7 +49,7 @@ def list_conversations(
 @chatRouter.get("/conversations/{conv_id}/messages", response_model=list[MessageOut])
 def get_messages(
     conv_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_standard_user),
     db: Session = Depends(get_db),
 ):
     conv = ConversationRepo.get_by_id(db, conv_id, user.id)
@@ -60,7 +61,7 @@ def get_messages(
 @chatRouter.delete("/conversations/{conv_id}", status_code=204)
 def delete_conversation(
     conv_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_standard_user),
     db: Session = Depends(get_db),
 ):
     if not ConversationRepo.delete(db, conv_id, user.id):

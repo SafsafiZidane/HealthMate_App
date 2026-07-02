@@ -8,26 +8,70 @@ from app.tables.users import User
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 groq_client = Groq(api_key=GROQ_API_KEY)
 
-SYSTEM_PROMPT = """You are a specialized AI health assistant. You only answer questions related to:
-- Medical conditions, symptoms, and diseases
-- Nutrition, diet, and healthy eating
-- Exercise, fitness, and physical wellness
-- Mental health and emotional well-being
-- Medications, supplements, and treatments
-- Preventive care and healthy lifestyle habits
-- Medical terminology and health education
+SYSTEM_PROMPT = """You are a specialized nutrition assistant. You only answer questions related to:
+- Nutrition, diet, healthy eating, meal planning, hydration, calories, macronutrients, micronutrients, supplements, and food habits
+- Weight loss or weight gain when the answer is based on nutrition and healthy lifestyle behavior
+- Exercise only when it directly supports a nutrition or weight-management question
 
-If the user asks about anything unrelated to health, politely decline and redirect them to health-related topics.
+If the user asks about anything outside nutrition, politely decline and redirect them to nutrition-related topics.
 Never provide definitive medical diagnoses. Always recommend consulting a qualified healthcare professional for personal medical advice."""
 
+OFF_TOPIC_NUTRITION_MESSAGE = (
+    "I can only help with nutrition, diet, meal planning, supplements, hydration, "
+    "and healthy weight-management questions. Please ask me something related to nutrition."
+)
 
-def is_health_related(message: str) -> bool:
+NUTRITION_KEYWORDS = {
+    "nutrition",
+    "diet",
+    "meal",
+    "food",
+    "eat",
+    "eating",
+    "calorie",
+    "calories",
+    "protein",
+    "carb",
+    "carbs",
+    "fat",
+    "fiber",
+    "vitamin",
+    "mineral",
+    "supplement",
+    "hydration",
+    "water",
+    "weight",
+    "lose weight",
+    "gain weight",
+    "breakfast",
+    "lunch",
+    "dinner",
+    "snack",
+    "recipe",
+    "macros",
+    "micronutrients",
+    "vegetarian",
+    "vegan",
+    "keto",
+}
+
+
+def has_nutrition_keyword(message: str) -> bool:
+    normalized = message.lower()
+    return any(keyword in normalized for keyword in NUTRITION_KEYWORDS)
+
+
+def is_nutrition_related(message: str) -> bool:
     """
-    Quick classification check to block non-health queries before hitting the main pipeline.
+    Quick classification check to block non-nutrition queries before hitting the main pipeline.
     """
+    if has_nutrition_keyword(message):
+        return True
+
     classification_prompt = (
-        "You are a strict text classifier. Determine if the following user input is related to medicine, "
-        "health, symptoms, fitness, nutrition, or mental well-being.\n"
+        "You are a strict text classifier. Determine if the following user input is related to nutrition, "
+        "diet, meals, food, supplements, hydration, calories, macronutrients, micronutrients, or healthy "
+        "weight management.\n"
         "Respond with EXACTLY 'YES' if it is related, or 'NO' if it is not. Do not include any other text.\n\n"
         f"User Input: \"{message}\"\n"
         "Classification:"
@@ -35,26 +79,17 @@ def is_health_related(message: str) -> bool:
     
     try:
         completion = groq_client.chat.completions.create(
-            model="llama-3.1-8b-instant", # Or a faster/cheaper model if available
+            model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": classification_prompt}],
-            temperature=0.0,  # Deterministic response
+            temperature=0.0,
             max_tokens=3,
         )
         decision = completion.choices[0].message.content.strip().upper()
         return "YES" in decision
     except Exception:
-        # Fallback: if guardrail fails, let it pass to the main prompt or log it
-        return True
+        return False
 
 def chat_with_history(db: Session, user: User, message: str, conversation_id: int | None) -> dict:
-    # ── GUARDRAIL STEP ────────────────────────────────────
-    if not is_health_related(message):
-        # We reject immediately. We don't even create a conversation or save to DB.
-        raise HTTPException(
-            status_code=400, 
-            detail="I can only assist you with health, medical, or wellness-related inquiries."
-        )
-
     # ── 1. Get or create conversation ─────────────────────
     if conversation_id:
         conv = ConversationRepo.get_by_id(db, conversation_id, user.id)
@@ -65,6 +100,10 @@ def chat_with_history(db: Session, user: User, message: str, conversation_id: in
 
     # ── 2. Save user message to DB ─────────────────────────
     MessageRepo.save(db, conv.id, role="user", content=message)
+
+    if not is_nutrition_related(message):
+        MessageRepo.save(db, conv.id, role="assistant", content=OFF_TOPIC_NUTRITION_MESSAGE)
+        return {"conversation_id": conv.id, "response": OFF_TOPIC_NUTRITION_MESSAGE}
 
     # ── 3. Load FULL history from DB ───────────────────────
     history = MessageRepo.get_history(db, conv.id)

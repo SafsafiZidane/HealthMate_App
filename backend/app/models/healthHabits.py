@@ -27,6 +27,12 @@ class BMIPlanInput(BaseModel):
     height_cm: float
     weight_kg: float
     goal: Literal["lose", "gain"]
+    age: int | None = None
+    sex: Literal["male", "female"] | None = None
+    activity_level: Literal["sedentary", "light", "moderate", "active", "very_active"] | None = None
+    diet: str | None = None
+    exercise_focus: str | None = None
+    daily_calorie_target: int | None = None
 
 
 class BMIPlanOutput(BaseModel):

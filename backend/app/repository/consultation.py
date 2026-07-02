@@ -43,6 +43,7 @@ class ConsultationRepo:
     def get_for_user(db: Session, consultation_id: int, user_id: int) -> Consultation | None:
         return (
             db.query(Consultation)
+            .options(joinedload(Consultation.user), joinedload(Consultation.doctor).joinedload(User.doctor_profile))
             .filter(Consultation.id == consultation_id, Consultation.user_id == user_id)
             .first()
         )
@@ -51,6 +52,7 @@ class ConsultationRepo:
     def get_for_doctor(db: Session, consultation_id: int, doctor_id: int) -> Consultation | None:
         return (
             db.query(Consultation)
+            .options(joinedload(Consultation.user), joinedload(Consultation.doctor).joinedload(User.doctor_profile))
             .filter(Consultation.id == consultation_id, Consultation.doctor_id == doctor_id)
             .first()
         )
@@ -59,6 +61,7 @@ class ConsultationRepo:
     def list_for_user(db: Session, user_id: int) -> list[Consultation]:
         return (
             db.query(Consultation)
+            .options(joinedload(Consultation.user), joinedload(Consultation.doctor).joinedload(User.doctor_profile))
             .filter(Consultation.user_id == user_id)
             .order_by(Consultation.created_at.desc())
             .all()
@@ -68,6 +71,7 @@ class ConsultationRepo:
     def list_for_doctor(db: Session, doctor_id: int) -> list[Consultation]:
         return (
             db.query(Consultation)
+            .options(joinedload(Consultation.user), joinedload(Consultation.doctor).joinedload(User.doctor_profile))
             .filter(Consultation.doctor_id == doctor_id)
             .order_by(Consultation.created_at.desc())
             .all()

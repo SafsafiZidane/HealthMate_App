@@ -11,7 +11,7 @@ from app.models.consultation import (
     DoctorOut,
 )
 from app.repository.consultation import ConsultationRepo, DoctorRepo
-from app.repository.dependencies import get_current_doctor_user, get_current_user
+from app.repository.dependencies import get_current_doctor_user, get_current_standard_user
 from app.tables.users import User
 
 consultationRouter = APIRouter(prefix="/consultations", tags=["Consultations"])
@@ -85,7 +85,7 @@ def get_doctor(doctor_id: int, db: Session = Depends(get_db)):
 @consultationRouter.post("", response_model=ConsultationOut)
 def request_consultation(
     req: ConsultationCreate,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_standard_user),
     db: Session = Depends(get_db),
 ):
     doctor = DoctorRepo.get_doctor(db, req.doctor_id)
@@ -96,7 +96,7 @@ def request_consultation(
 
 @consultationRouter.get("/mine", response_model=list[ConsultationOut])
 def list_my_consultations(
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_standard_user),
     db: Session = Depends(get_db),
 ):
     return ConsultationRepo.list_for_user(db, user.id)
@@ -125,7 +125,7 @@ def reply_to_consultation(
 
 @consultationRouter.get("/reports/export")
 def export_my_reports(
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_standard_user),
     db: Session = Depends(get_db),
 ):
     consultations = ConsultationRepo.list_for_user(db, user.id)
